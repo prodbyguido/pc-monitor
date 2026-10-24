@@ -94,10 +94,33 @@ class Sample:
     hwinfo: list[HwinfoReading] | None
 
 
+# HWiNFO writes its shared readings to either your user section of the registry or the
+# machine-wide one, depending on how it was started. Both can exist, and the one it isn't using
+# keeps old, frozen values, so PC Monitor reads both and uses whichever is actually updating.
+HWINFO_ROOTS = (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE)
+_last_change: dict[int, tuple[tuple, float]] = {}  # root -> (latest values, when they last changed)
+
+
 def read_hwinfo() -> list[HwinfoReading] | None:
-    """Values HWiNFO reports to Gadget, or None if the registry key isn't there."""
+    """Values HWiNFO reports to Gadget, or None if it isn't sharing anything."""
+    now = time.monotonic()
+    best, best_changed = None, float("-inf")
+    for root in HWINFO_ROOTS:
+        readings = _read_hwinfo_key(root)
+        if readings is None:
+            continue
+        values = tuple((r.label, r.value) for r in readings)
+        seen = _last_change.get(root)
+        changed = seen[1] if seen and seen[0] == values else (now if seen else float("-inf"))
+        _last_change[root] = (values, changed)
+        if best is None or changed > best_changed:
+            best, best_changed = readings, changed
+    return best
+
+
+def _read_hwinfo_key(root) -> list[HwinfoReading] | None:
     try:
-        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, HWINFO_KEY, 0, winreg.KEY_READ)
+        key = winreg.OpenKey(root, HWINFO_KEY, 0, winreg.KEY_READ)
     except OSError:
         return None
 
