@@ -1,0 +1,21 @@
+# ---- Personal: never upload ----------------------------------------------------
+# Marks this folder as the developer copy
+developer_copy
+# Settings and window layout
+settings.ini
+window.ini
+# Your usage, network and game history
+history.db
+history.db-*
+# Logs and exports
+crash.log
+logs/
+exports/
+
+# ---- Not needed on GitHub ---------------------------------------------------------
+.venv/
+__pycache__/
+*.pyc
+build/
+dist/
+*.spec
