@@ -1,4 +1,4 @@
 """PC Monitor's version, and where updates are published."""
 
-VERSION = "1.1.0"
+VERSION = "1.1.1"
 GITHUB_REPO = "prodbyguido/pc-monitor"  # where releases are published; empty = no update checks

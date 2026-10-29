@@ -16,6 +16,7 @@ from dataclasses import dataclass
 
 from PySide6.QtCore import QObject, QProcess, QRect, QSettings, Qt, QTimer, Signal
 from PySide6.QtGui import QFont, QIcon, QKeySequence, QShortcut
+from PySide6.QtNetwork import QNetworkInformation
 from PySide6.QtWidgets import (QApplication, QButtonGroup, QGridLayout, QHBoxLayout, QLabel,
                                QPushButton, QSizePolicy, QStackedWidget, QSystemTrayIcon,
                                QVBoxLayout, QWidget)
@@ -358,6 +359,9 @@ class Dashboard(QWidget):
             "network watcher (Settings → Tracking & reports).")
         self.wifi_poller = WifiPoller()
         self.wifi_poller.start()
+        # Windows' own "No internet" check (the one behind the taskbar icon), for when the
+        # network watcher is off. Reading it sends nothing from PC Monitor.
+        self.net_info = QNetworkInformation.instance() if QNetworkInformation.loadDefaultBackend() else None
 
         self.cpu.footer.setText(f"{s.physical_cores} cores / {s.logical_cores} threads")
         self.vram.footer.setText(f"of {gpu.vram_total_gb:.0f} GB")
@@ -870,7 +874,8 @@ class Dashboard(QWidget):
         if watcher:
             watcher.signal = poller.signal  # saved each minute for Reports → Network
         pings = ping_stats(list(watcher.recent)) if watcher else None
-        result = wifi_strength(poller.status, pings, watcher.internet_up if watcher else None,
+        result = wifi_strength(poller.status, pings,
+                               watcher.internet_up if watcher else self.windows_says_internet(),
                                self.settings.internet_plan_mbps)
         score = result["score"]
         if score is None:
@@ -889,6 +894,18 @@ class Dashboard(QWidget):
         elif not watcher:
             parts.append("no ping (watcher off)")
         self.wifi.footer.setText("  ·  ".join(p for p in parts if p))
+
+    def windows_says_internet(self) -> bool | None:
+        """False when Windows says the Wi-Fi works but there's no internet; None if it can't tell."""
+        if not self.net_info:
+            return None
+        reach = self.net_info.reachability()
+        R = QNetworkInformation.Reachability
+        if reach == R.Online:
+            return True
+        if reach in (R.Site, R.Local):  # connected to the router, but no way out to the internet
+            return False
+        return None  # Unknown, or not connected at all (the Wi-Fi reading covers that)
 
     def update_fps_card(self, f: Frames):
         if not f.running:
